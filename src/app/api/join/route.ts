@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dispatchJoinApplication } from '@/lib/email';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -21,14 +23,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // Save to Firestore — join_applications collection
+    await adminDb.collection('join_applications').add({
+      fullName:  fullName.trim(),
+      email:     email.trim(),
+      phone:     phone?.trim() || '',
+      city:      city.trim(),
+      interest:  interest.trim(),
+      message:   message?.trim() || '',
+      howHeard:  howHeard?.trim() || 'Website',
+      createdAt: Timestamp.now(),
+      status:    'pending',
+    });
+
     // Dispatch professional application dossier to valkyrriemeds@gmail.com and candidate
     await dispatchJoinApplication({
       fullName: fullName.trim(),
-      email: email.trim(),
-      phone: phone?.trim() || '',
-      city: city.trim(),
+      email:    email.trim(),
+      phone:    phone?.trim() || '',
+      city:     city.trim(),
       interest: interest.trim(),
-      message: message?.trim() || '',
+      message:  message?.trim() || '',
       howHeard: howHeard?.trim() || 'Website',
     });
 

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { registerNewUser } from '@/lib/userStore';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -28,6 +30,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // Register via local bcrypt store (authentication)
     const result = await registerNewUser({ name, email, password });
 
     if (!result.success) {
@@ -40,6 +43,17 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
+    // Mirror new user to Firestore — users collection (no password stored)
+    await adminDb.collection('users').doc(result.user!.id).set({
+      id:         result.user!.id,
+      name:       name.trim(),
+      email:      email.trim().toLowerCase(),
+      provider:   'email',
+      role:       'client',
+      createdAt:  Timestamp.now(),
+      lastLogin:  Timestamp.now(),
+    });
 
     return NextResponse.json({
       success: true,

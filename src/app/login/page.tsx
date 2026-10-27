@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/AuthContext';
+import { auth, googleProvider } from '@/lib/firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -54,26 +56,41 @@ export default function LoginPage() {
     }
   };
 
-  const handleOAuth = (provider: 'Google' | 'LinkedIn') => {
-    if (provider === 'LinkedIn') {
-      // Direct registration & login into Valkyrrie Meds using LinkedIn account
-      login('kgopal@linkedin.com', 'K Gopal (LinkedIn)');
+  const handleGoogleAuth = async () => {
+    setStatus('loading');
+    setErrorMsg('');
+    setIsNotRegistered(false);
+    setIsWrongPassword(false);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      // Save session via existing AuthContext
+      login(user.email || '', user.displayName || user.email || 'Google User');
       window.location.href = '/';
-      return;
+    } catch (err: unknown) {
+      setStatus('error');
+      const firebaseErr = err as { code?: string; message?: string };
+      if (firebaseErr.code === 'auth/popup-closed-by-user') {
+        setErrorMsg('Google sign-in was cancelled. Please try again.');
+      } else if (firebaseErr.code === 'auth/popup-blocked') {
+        setErrorMsg('Popup was blocked by your browser. Please allow popups for this site.');
+      } else {
+        setErrorMsg(firebaseErr.message || 'Google sign-in failed. Please try again.');
+      }
+    } finally {
+      if (status === 'loading') setStatus('idle');
     }
+  };
 
-    // Google: prepare callback and account chooser (details to be provided later by user)
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const callbackUrl = `${origin}/auth/callback?provider=google`;
-
-    localStorage.setItem('vm_oauth_name', 'Google User');
-    localStorage.setItem('vm_oauth_email', 'googleuser@valkyrriemeds.com');
-
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (googleClientId && !googleClientId.includes('your_google_client_id')) {
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
+  const handleLinkedInAuth = () => {
+    // LinkedIn OAuth — account chooser redirect
+    const linkedInClientId = process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID;
+    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/linkedin-callback`);
+    if (linkedInClientId && !linkedInClientId.includes('your_linkedin')) {
+      window.location.href = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${linkedInClientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
     } else {
-      window.location.href = `https://accounts.google.com/AccountChooser?service=lso&continue=${encodeURIComponent(callbackUrl)}`;
+      // Fallback: open LinkedIn login page
+      window.open('https://www.linkedin.com/login', '_blank');
     }
   };
 
@@ -106,7 +123,7 @@ export default function LoginPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
           <button
             type="button"
-            onClick={() => handleOAuth('Google')}
+            onClick={handleGoogleAuth}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -136,7 +153,7 @@ export default function LoginPage() {
 
           <button
             type="button"
-            onClick={() => handleOAuth('LinkedIn')}
+            onClick={handleLinkedInAuth}
             style={{
               display: 'flex',
               alignItems: 'center',

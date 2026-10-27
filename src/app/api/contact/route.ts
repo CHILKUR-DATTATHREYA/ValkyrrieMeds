@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dispatchContactInquiry } from '@/lib/email';
+import { adminDb } from '@/lib/firebaseAdmin';
+import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -23,13 +25,24 @@ export async function POST(request: Request) {
 
     const resolvedSubject = subject?.trim() || 'General Pillar Inquiry';
 
-    // Dispatch professional business-class email to both valkyrriemeds@gmail.com and client
+    // Save to Firestore — contact_inquiries collection
+    await adminDb.collection('contact_inquiries').add({
+      fullName:  fullName.trim(),
+      email:     email.trim(),
+      mobile:    mobile?.trim() || '',
+      subject:   resolvedSubject,
+      message:   message.trim(),
+      createdAt: Timestamp.now(),
+      status:    'new',
+    });
+
+    // Dispatch professional business-class email to valkyrriemeds@gmail.com AND client
     await dispatchContactInquiry({
       fullName: fullName.trim(),
-      email: email.trim(),
-      mobile: mobile?.trim() || '',
-      subject: resolvedSubject,
-      message: message.trim(),
+      email:    email.trim(),
+      mobile:   mobile?.trim() || '',
+      subject:  resolvedSubject,
+      message:  message.trim(),
     });
 
     return NextResponse.json({
