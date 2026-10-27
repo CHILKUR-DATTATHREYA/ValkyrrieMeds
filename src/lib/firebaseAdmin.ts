@@ -1,92 +1,66 @@
 // src/lib/firebaseAdmin.ts
-// Firebase Admin SDK — server-side only (API routes, secure Firestore writes)
-import * as adminApp from 'firebase-admin/app';
-import * as adminFirestore from 'firebase-admin/firestore';
-import * as adminAuth from 'firebase-admin/auth';
+// Firebase Admin SDK — server-side dynamic loader (100% serverless safe, no ESM/CJS conflicts)
 
-function getOrInitAdmin(): adminApp.App | null {
+export async function saveToFirestore(
+  collectionName: string,
+  data: Record<string, unknown>,
+  docId?: string
+): Promise<string | null> {
   try {
+    const adminApp = await import('firebase-admin/app');
+    const adminFirestore = await import('firebase-admin/firestore');
+
     const existingApps = adminApp.getApps();
-    if (existingApps.length > 0) {
-      return existingApps[0];
-    }
+    let app = existingApps.length > 0 ? existingApps[0] : null;
 
-    let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-    if (privateKey) {
-      // Clean surrounding quotes and convert literal \n to real newlines
-      privateKey = privateKey.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
-    }
+    if (!app) {
+      let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
+      if (privateKey) {
+        privateKey = privateKey.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
+      }
 
-    if (
-      process.env.FIREBASE_ADMIN_PROJECT_ID &&
-      process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
-      privateKey
-    ) {
-      return adminApp.initializeApp({
-        credential: adminApp.cert({
-          projectId:   process.env.FIREBASE_ADMIN_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-          privateKey,
-        }),
-      });
-    }
-
-    return null;
-  } catch (err) {
-    console.warn('Firebase Admin initialization deferred/failed:', err);
-    return null;
-  }
-}
-
-/**
- * Returns the Firestore Admin instance if credentials are valid, or null.
- * Never throws at module load time.
- */
-export function getAdminDb(): adminFirestore.Firestore | null {
-  try {
-    const app = getOrInitAdmin();
-    if (!app) return null;
-    return adminFirestore.getFirestore(app);
-  } catch (err) {
-    console.warn('Could not initialize admin Firestore:', err);
-    return null;
-  }
-}
-
-/**
- * Returns the Auth Admin service if credentials are valid, or null.
- */
-export function getAdminAuth(): adminAuth.Auth | null {
-  try {
-    const app = getOrInitAdmin();
-    if (!app) return null;
-    return adminAuth.getAuth(app);
-  } catch (err) {
-    console.warn('Could not initialize admin Auth:', err);
-    return null;
-  }
-}
-
-// Fallback proxy to maintain backward-compatibility for direct adminDb references
-export const adminDb = new Proxy({} as adminFirestore.Firestore, {
-  get(_target, prop) {
-    const realDb = getAdminDb();
-    if (!realDb) {
-      // Return safe no-op functions if credentials are not configured yet
-      if (prop === 'collection') {
-        return () => ({
-          doc: () => ({
-            set: async () => {},
-            get: async () => ({ exists: false, data: () => null }),
+      if (
+        process.env.FIREBASE_ADMIN_PROJECT_ID &&
+        process.env.FIREBASE_ADMIN_CLIENT_EMAIL &&
+        privateKey
+      ) {
+        app = adminApp.initializeApp({
+          credential: adminApp.cert({
+            projectId:   process.env.FIREBASE_ADMIN_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+            privateKey,
           }),
-          add: async () => ({ id: 'mock_doc_id' }),
         });
       }
-      return undefined;
     }
-    const val = (realDb as unknown as Record<string, unknown>)[prop as string];
-    return typeof val === 'function' ? (val as Function).bind(realDb) : val;
-  },
-});
 
-export default getOrInitAdmin;
+    if (!app) {
+      return null;
+    }
+
+    const db = adminFirestore.getFirestore(app);
+    if (docId) {
+      await db.collection(collectionName).doc(docId).set(data);
+      return docId;
+    } else {
+      const ref = await db.collection(collectionName).add(data);
+      return ref.id;
+    }
+  } catch (err) {
+    console.warn(`[Firestore] ${collectionName} mirror skipped:`, err);
+    return null;
+  }
+}
+
+// Backward-compatible safe proxy so static adminDb references never crash
+export const adminDb = {
+  collection: (name: string) => ({
+    doc: (id: string) => ({
+      set: async (data: Record<string, unknown>) => saveToFirestore(name, data, id),
+    }),
+    add: async (data: Record<string, unknown>) => {
+      const id = await saveToFirestore(name, data);
+      return { id: id || 'temp_id' };
+    },
+  }),
+};

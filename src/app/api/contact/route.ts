@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dispatchContactInquiry } from '@/lib/email';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
         mobile:    mobile?.trim() || '',
         subject:   resolvedSubject,
         message:   message.trim(),
-        createdAt: Timestamp.now(),
+        createdAt: new Date().toISOString(),
         status:    'new',
       });
     } catch (dbErr) {

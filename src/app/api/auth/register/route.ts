@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { registerNewUser } from '@/lib/userStore';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -52,8 +51,8 @@ export async function POST(request: Request) {
         email:      email.trim().toLowerCase(),
         provider:   'email',
         role:       'client',
-        createdAt:  Timestamp.now(),
-        lastLogin:  Timestamp.now(),
+        createdAt:  new Date().toISOString(),
+        lastLogin:  new Date().toISOString(),
       });
     } catch (dbErr) {
       console.warn('Firestore mirror skipped/failed:', dbErr);

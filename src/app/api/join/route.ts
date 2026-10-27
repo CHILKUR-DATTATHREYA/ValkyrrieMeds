@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dispatchJoinApplication } from '@/lib/email';
 import { adminDb } from '@/lib/firebaseAdmin';
-import { Timestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
         interest:  interest.trim(),
         message:   message?.trim() || '',
         howHeard:  howHeard?.trim() || 'Website',
-        createdAt: Timestamp.now(),
+        createdAt: new Date().toISOString(),
         status:    'pending',
       });
     } catch (dbErr) {
