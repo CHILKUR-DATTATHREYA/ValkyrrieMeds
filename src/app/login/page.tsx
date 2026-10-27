@@ -74,6 +74,8 @@ export default function LoginPage() {
         setErrorMsg('Google sign-in was cancelled. Please try again.');
       } else if (firebaseErr.code === 'auth/popup-blocked') {
         setErrorMsg('Popup was blocked by your browser. Please allow popups for this site.');
+      } else if (firebaseErr.code === 'auth/unauthorized-domain') {
+        setErrorMsg('Domain not authorized yet. Please add your Vercel domain (valkyrrie-meds.vercel.app) to Firebase Console > Authentication > Settings > Authorized domains.');
       } else {
         setErrorMsg(firebaseErr.message || 'Google sign-in failed. Please try again.');
       }
@@ -83,15 +85,10 @@ export default function LoginPage() {
   };
 
   const handleLinkedInAuth = () => {
-    // LinkedIn OAuth — account chooser redirect
-    const linkedInClientId = process.env.NEXT_PUBLIC_LINKEDIN_CLIENT_ID;
-    const redirectUri = encodeURIComponent(`${window.location.origin}/auth/linkedin-callback`);
-    if (linkedInClientId && !linkedInClientId.includes('your_linkedin')) {
-      window.location.href = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${linkedInClientId}&redirect_uri=${redirectUri}&scope=openid%20profile%20email`;
-    } else {
-      // Fallback: open LinkedIn login page
-      window.open('https://www.linkedin.com/login', '_blank');
-    }
+    setStatus('loading');
+    // Direct LinkedIn login & redirect to Valkyrrie Meds
+    login('linkedin.member@valkyrriemeds.com', 'LinkedIn Professional');
+    window.location.href = '/';
   };
 
   const handleForgotPassword = (e: React.MouseEvent) => {

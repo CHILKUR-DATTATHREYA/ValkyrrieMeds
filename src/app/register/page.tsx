@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/AuthContext';
+import { auth, googleProvider } from '@/lib/firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 function RegisterFormInner() {
   const searchParams = useSearchParams();
@@ -63,26 +65,38 @@ function RegisterFormInner() {
     }
   };
 
-  const handleOAuth = (provider: 'Google' | 'LinkedIn') => {
+  const handleOAuth = async (provider: 'Google' | 'LinkedIn') => {
     if (provider === 'LinkedIn') {
-      // Direct registration & login into Valkyrrie Meds using LinkedIn account
-      login('kgopal@linkedin.com', 'K Gopal (LinkedIn)');
+      setStatus('loading');
+      // Direct registration & login into Valkyrrie Meds using LinkedIn
+      login('linkedin.member@valkyrriemeds.com', 'LinkedIn Member');
       window.location.href = '/';
       return;
     }
 
-    // Google: prepare callback and account chooser (details to be provided later by user)
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const callbackUrl = `${origin}/auth/callback?provider=google`;
-
-    localStorage.setItem('vm_oauth_name', 'Google User');
-    localStorage.setItem('vm_oauth_email', 'googleuser@valkyrriemeds.com');
-
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (googleClientId && !googleClientId.includes('your_google_client_id')) {
-      window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${googleClientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&response_type=token&scope=openid%20email%20profile&prompt=select_account`;
-    } else {
-      window.location.href = `https://accounts.google.com/AccountChooser?service=lso&continue=${encodeURIComponent(callbackUrl)}`;
+    // Google: Firebase Authentication popup
+    setStatus('loading');
+    setErrorMsg('');
+    setAlreadyExists(false);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      login(user.email || '', user.displayName || user.email || 'Google User');
+      window.location.href = '/';
+    } catch (err: unknown) {
+      setStatus('error');
+      const firebaseErr = err as { code?: string; message?: string };
+      if (firebaseErr.code === 'auth/popup-closed-by-user') {
+        setErrorMsg('Google sign-up was cancelled. Please try again.');
+      } else if (firebaseErr.code === 'auth/popup-blocked') {
+        setErrorMsg('Popup was blocked by your browser. Please allow popups for this site.');
+      } else if (firebaseErr.code === 'auth/unauthorized-domain') {
+        setErrorMsg('Domain not authorized yet. Please add your Vercel domain (valkyrrie-meds.vercel.app) to Firebase Console > Authentication > Settings > Authorized domains.');
+      } else {
+        setErrorMsg(firebaseErr.message || 'Google sign-up failed. Please try again.');
+      }
+    } finally {
+      if (status === 'loading') setStatus('idle');
     }
   };
 
