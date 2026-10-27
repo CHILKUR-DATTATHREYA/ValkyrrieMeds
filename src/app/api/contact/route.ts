@@ -25,16 +25,20 @@ export async function POST(request: Request) {
 
     const resolvedSubject = subject?.trim() || 'General Pillar Inquiry';
 
-    // Save to Firestore — contact_inquiries collection
-    await adminDb.collection('contact_inquiries').add({
-      fullName:  fullName.trim(),
-      email:     email.trim(),
-      mobile:    mobile?.trim() || '',
-      subject:   resolvedSubject,
-      message:   message.trim(),
-      createdAt: Timestamp.now(),
-      status:    'new',
-    });
+    // Save to Firestore — contact_inquiries collection (safe fallback)
+    try {
+      await adminDb.collection('contact_inquiries').add({
+        fullName:  fullName.trim(),
+        email:     email.trim(),
+        mobile:    mobile?.trim() || '',
+        subject:   resolvedSubject,
+        message:   message.trim(),
+        createdAt: Timestamp.now(),
+        status:    'new',
+      });
+    } catch (dbErr) {
+      console.warn('Firestore contact save skipped/failed:', dbErr);
+    }
 
     // Dispatch professional business-class email to valkyrriemeds@gmail.com AND client
     await dispatchContactInquiry({

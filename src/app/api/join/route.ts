@@ -23,18 +23,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Save to Firestore — join_applications collection
-    await adminDb.collection('join_applications').add({
-      fullName:  fullName.trim(),
-      email:     email.trim(),
-      phone:     phone?.trim() || '',
-      city:      city.trim(),
-      interest:  interest.trim(),
-      message:   message?.trim() || '',
-      howHeard:  howHeard?.trim() || 'Website',
-      createdAt: Timestamp.now(),
-      status:    'pending',
-    });
+    // Save to Firestore — join_applications collection (safe fallback)
+    try {
+      await adminDb.collection('join_applications').add({
+        fullName:  fullName.trim(),
+        email:     email.trim(),
+        phone:     phone?.trim() || '',
+        city:      city.trim(),
+        interest:  interest.trim(),
+        message:   message?.trim() || '',
+        howHeard:  howHeard?.trim() || 'Website',
+        createdAt: Timestamp.now(),
+        status:    'pending',
+      });
+    } catch (dbErr) {
+      console.warn('Firestore join save skipped/failed:', dbErr);
+    }
 
     // Dispatch professional application dossier to valkyrriemeds@gmail.com and candidate
     await dispatchJoinApplication({

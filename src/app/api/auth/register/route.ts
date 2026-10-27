@@ -45,15 +45,19 @@ export async function POST(request: Request) {
     }
 
     // Mirror new user to Firestore — users collection (no password stored)
-    await adminDb.collection('users').doc(result.user!.id).set({
-      id:         result.user!.id,
-      name:       name.trim(),
-      email:      email.trim().toLowerCase(),
-      provider:   'email',
-      role:       'client',
-      createdAt:  Timestamp.now(),
-      lastLogin:  Timestamp.now(),
-    });
+    try {
+      await adminDb.collection('users').doc(result.user!.id).set({
+        id:         result.user!.id,
+        name:       name.trim(),
+        email:      email.trim().toLowerCase(),
+        provider:   'email',
+        role:       'client',
+        createdAt:  Timestamp.now(),
+        lastLogin:  Timestamp.now(),
+      });
+    } catch (dbErr) {
+      console.warn('Firestore mirror skipped/failed:', dbErr);
+    }
 
     return NextResponse.json({
       success: true,
